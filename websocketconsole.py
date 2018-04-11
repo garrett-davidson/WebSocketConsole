@@ -19,6 +19,7 @@ conn = 0
 
 OPEN_WEBSOCKET_PREFIX = 'GET / HTTP/1.1'
 
+OPCODE_PING = 9
 class WebSocketFrame(ctypes.BigEndianStructure):
     _fields_ = [
         ("fin", c_uint8, 1),
@@ -85,22 +86,18 @@ def responseForOpenWebSocket(request):
         responseKey = calculatResponseKey(key)
         return WEBSOCKET_RESPONSE_PREFIX + responseKey + '\r\n\r\n'
 
-def responseForFrame(frame):
-    binPrint(frame)
-    test = WebSocketFrame()
+def pongForPing(frame):
+    pong = frame
+    pong.opcode = 0xA
+    return pong
 
-    test.setRawData(frame)
-    print
-    print ctypes.sizeof(test)
-    print test.fin
-    print test.rsv1
-    print test.rsv2
-    print test.rsv3
-    print test.opcode
-    print test.mask
-    print test.payloadLen
-    binPrint(test.maskingKey)
-    test.unmaskPayloadData()
+def responseForFrame(frame):
+    if frame.opcode == OPCODE_PING:
+        print("Got ping")
+        return pongForPing(frame)
+
+    frame.unmaskPayloadData()
+    return None
 
 def listen(sock):
     global conn
@@ -117,13 +114,17 @@ def listen(sock):
             print "Received data:"
             print data
 
-            response = ""
+            response = None
             if data.startswith(OPEN_WEBSOCKET_PREFIX):
                 print "Opening WebSocket"
                 response = responseForOpenWebSocket(data)
-                conn.sendall(response)
             else:
-                response = responseForFrame(data)
+                frame = WebSocketFrame()
+                frame.setRawData(data)
+                response = responseForFrame(frame)
+
+            if response:
+                conn.sendall(response)
 
     except RuntimeError as e:
         print "Error:", e
