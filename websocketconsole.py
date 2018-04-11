@@ -27,14 +27,29 @@ class WebSocketFrame(ctypes.BigEndianStructure):
         ("rsv3", c_uint8, 1),
         ("opcode", c_uint8, 4),
         ("mask", c_uint8, 1),
-        ("payload_len", c_uint8, 7),
-        ("masking_key", c_uint32, 32),
+        ("payloadLen", c_uint8, 7),
     ]
-    payload = None
+    payloadLen = 0
+    maskingKey = ''
+    payload = ''
 
     def setRawData(self, rawData):
         ctypes.memmove(ctypes.addressof(self), rawData, ctypes.sizeof(self))
-        self.payload = rawData[ctypes.sizeof(self):]
+        # TODO: Handle all payload sizes
+        fieldStart = 2
+        if self.mask:
+            self.maskingKey = rawData[fieldStart:fieldStart+4]
+            fieldStart += 4
+
+        self.payload = rawData[fieldStart:]
+
+    def unmaskPayloadData(self):
+        unmaskedPayload = ''
+        for i in range(0, self.payloadLen):
+            unmaskedPayload += chr(ord(self.payload[i]) ^ ord(self.maskingKey[i%4]))
+
+        return unmaskedPayload
+
 
 def binPrint(data):
     for d in bytearray(data):
@@ -83,8 +98,9 @@ def responseForFrame(frame):
     print test.rsv3
     print test.opcode
     print test.mask
-    print test.payload_len
-    print "{0:b}".format(test.masking_key)
+    print test.payloadLen
+    binPrint(test.maskingKey)
+    test.unmaskPayloadData()
 
 def listen(sock):
     global conn
