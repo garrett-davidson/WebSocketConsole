@@ -20,6 +20,9 @@ conn = 0
 OPEN_WEBSOCKET_PREFIX = 'GET / HTTP/1.1'
 
 OPCODE_PING = 9
+
+DEBUG = 1
+
 class WebSocketFrame(ctypes.BigEndianStructure):
     _fields_ = [
         ("fin", c_uint8, 1),
@@ -51,8 +54,15 @@ class WebSocketFrame(ctypes.BigEndianStructure):
 
         return unmaskedPayload
 
+def dprint(*arg):
+    if DEBUG:
+        print arg
 
-def binPrint(data):
+def dprintBin(*arg):
+    if DEBUG:
+        printBin(arg)
+
+def printBin(data):
     for d in bytearray(data):
         print "{0:b}".format(d)
 
@@ -60,7 +70,7 @@ def clean(*args):
     global conn
     conn.close()
     websock.close()
-    print("Cleaned up socket")
+    dprint("Cleaned up socket")
     sys.exit(0)
 
 def openSock():
@@ -72,7 +82,7 @@ def openSock():
 KEY_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 def calculatResponseKey(requestKey):
     responseKey = base64.b64encode(hashlib.sha1(requestKey + KEY_MAGIC).digest())
-    print "Response key:", responseKey
+    dprint ("Response key:", responseKey)
     return responseKey
 
 WEBSOCKET_KEY_PREFIX = 'Sec-WebSocket-Key: '
@@ -82,7 +92,7 @@ def responseForOpenWebSocket(request):
         if not line.startswith(WEBSOCKET_KEY_PREFIX):
             continue
         key = line.split(WEBSOCKET_KEY_PREFIX)[1]
-        print "Got key", key
+        dprint("Got key", key)
         responseKey = calculatResponseKey(key)
         return WEBSOCKET_RESPONSE_PREFIX + responseKey + '\r\n\r\n'
 
@@ -93,7 +103,7 @@ def pongForPing(frame):
 
 def responseForFrame(frame):
     if frame.opcode == OPCODE_PING:
-        print("Got ping")
+        dprint("Got ping")
         return pongForPing(frame)
 
     frame.unmaskPayloadData()
@@ -101,22 +111,22 @@ def responseForFrame(frame):
 
 def listen(sock):
     global conn
-    print 'Listening on port', port
+    dprint('Listening on port', port)
     conn, addr = sock.accept()
-    print 'Received connection from ' + addr[0]
+    dprint('Received connection from ' + addr[0])
     try:
         while 1:
             data = conn.recv(1024)
             if data == "":
-                print "Connection closed?"
+                dprint("Connection closed?")
                 return
 
-            print "Received data:"
-            print data
+            dprint("Received data:")
+            dprint(data)
 
             response = None
             if data.startswith(OPEN_WEBSOCKET_PREFIX):
-                print "Opening WebSocket"
+                dprint("Opening WebSocket")
                 response = responseForOpenWebSocket(data)
             else:
                 frame = WebSocketFrame()
@@ -127,8 +137,8 @@ def listen(sock):
                 conn.sendall(response)
 
     except RuntimeError as e:
-        print "Error:", e
-        print "Closed connection"
+        dprint("Error:", e)
+        dprint("Closed connection")
         conn.close()
 
 for sig in (SIGABRT, SIGILL, SIGINT, SIGSEGV, SIGTERM):
