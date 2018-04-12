@@ -185,7 +185,7 @@ def sendText(text):
     frame.rsv3 = 0
     frame.opcode = 1
     frame.mask = 0
-    frame.payloadLen = len(text) # TODO: Exptend to work with text longer than 126
+    frame.payloadLen = len(text) # TODO: Extend to work with text longer than 126
     frame.payload = text
     return frame.getRawData()
 
