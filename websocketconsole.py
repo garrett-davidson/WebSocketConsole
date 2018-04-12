@@ -24,7 +24,7 @@ OPEN_WEBSOCKET_PREFIX = 'GET / HTTP/1.1'
 
 OPCODE_PING = 9
 
-DEBUG = 1
+DEBUG = 0
 
 shouldQuit = 0
 
