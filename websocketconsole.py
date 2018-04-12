@@ -96,13 +96,11 @@ def clean(*args):
     global webSockThread
     global shouldQuit
     shouldQuit = 1
+    if websock:
+        websock.close()
     if conn:
         conn.shutdown(socket.SHUT_RDWR)
         conn.close()
-    if websock:
-        websock.close()
-        dprint("Cleaned up socket")
-        sys.exit(0)
 
 def openSock():
     global websock
@@ -126,7 +124,7 @@ def responseForOpenWebSocket(request):
         key = line.split(WEBSOCKET_KEY_PREFIX)[1]
         dprint("Got key", key)
         responseKey = calculatResponseKey(key)
-        return WEBSOCKET_RESPONSE_PREFIX + responseKey + '\r\n\r\n'
+    return WEBSOCKET_RESPONSE_PREFIX + responseKey + '\r\n\r\n'
 
 def pongForPing(frame):
     pong = frame
@@ -166,8 +164,8 @@ def listen(sock):
                 frame.setRawData(data)
                 response = responseForFrame(frame)
 
-                if response:
-                    conn.sendall(response)
+            if response:
+                conn.sendall(response)
         except socket.timeout:
             continue
 
