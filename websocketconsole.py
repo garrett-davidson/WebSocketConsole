@@ -33,10 +33,14 @@ class WebSockThread(threading.Thread):
         global websock
         global shouldQuit
         websock = openSock()
+        websock.settimeout(3)
+        dprint('Listening on port', port)
 
         while not shouldQuit:
             try:
                 listen(websock)
+            except socket.timeout:
+                continue
             except:
                 traceback.print_exc()
                 clean()
@@ -140,7 +144,6 @@ def responseForFrame(frame):
 def listen(sock):
     global conn
     global shouldQuit
-    dprint('Listening on port', port)
     conn, addr = sock.accept()
     dprint('Received connection from ' + addr[0])
     conn.settimeout(3)
@@ -166,7 +169,7 @@ def listen(sock):
                 if response:
                     conn.sendall(response)
         except socket.timeout:
-            return
+            continue
 
 for sig in (SIGABRT, SIGILL, SIGINT, SIGSEGV, SIGTERM):
     signal(sig, clean)
