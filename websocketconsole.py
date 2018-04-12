@@ -169,6 +169,7 @@ def listen(sock):
             else:
                 frame = WebSocketFrame()
                 frame.setRawData(data)
+                print frame.unmaskPayloadData()
                 response = responseForFrame(frame)
 
             if response:
