@@ -78,6 +78,13 @@ class WebSocketFrame(ctypes.BigEndianStructure):
 
         return unmaskedPayload
 
+    def getRawData(self):
+        data = ctypes.string_at(ctypes.addressof(self), ctypes.sizeof(self))
+        data += self.maskingKey
+        data += self.payload
+
+        return data
+
 def dprint(*arg):
     if DEBUG:
         print arg
@@ -129,7 +136,7 @@ def responseForOpenWebSocket(request):
 def pongForPing(frame):
     pong = frame
     pong.opcode = 0xA
-    return pong
+    return pong.getRawData()
 
 def responseForFrame(frame):
     if frame.opcode == OPCODE_PING:
@@ -169,6 +176,18 @@ def listen(sock):
         except socket.timeout:
             continue
 
+def sendText(text):
+    frame = WebSocketFrame()
+    frame.fin = 1
+    frame.rsv1 = 0
+    frame.rsv2 = 0
+    frame.rsv3 = 0
+    frame.opcode = 1
+    frame.mask = 0
+    frame.payloadLen = len(text) # TODO: Exptend to work with text longer than 126
+    frame.payload = text
+    return frame.getRawData()
+
 for sig in (SIGABRT, SIGILL, SIGINT, SIGSEGV, SIGTERM):
     signal(sig, clean)
 
@@ -180,6 +199,8 @@ try:
         if line == "":
             continue
 
+        lineFrame = sendText(line)
+        conn.sendall(lineFrame)
 
 except:
     traceback.print_exc()
