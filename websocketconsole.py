@@ -7,6 +7,7 @@ import hashlib
 import socket
 import struct
 import sys
+import threading
 import traceback
 
 c_uint8 = ctypes.c_uint8
@@ -15,7 +16,9 @@ c_uint32 = ctypes.c_uint32
 c_uint64 = ctypes.c_uint64
 
 port = int(sys.argv[1])
-conn = 0
+conn = None
+websock = None
+webSockThread = None
 
 OPEN_WEBSOCKET_PREFIX = 'GET / HTTP/1.1'
 
@@ -23,6 +26,23 @@ OPCODE_PING = 9
 
 DEBUG = 1
 
+shouldQuit = 0
+
+class WebSockThread(threading.Thread):
+    def run(self):
+        global websock
+        global shouldQuit
+        websock = openSock()
+
+        while not shouldQuit:
+            try:
+                listen(websock)
+            except:
+                traceback.print_exc()
+                clean()
+
+
+# TODO: Handle fragmented messages
 class WebSocketFrame(ctypes.BigEndianStructure):
     _fields_ = [
         ("fin", c_uint8, 1),
@@ -68,12 +88,20 @@ def printBin(data):
 
 def clean(*args):
     global conn
-    conn.close()
-    websock.close()
-    dprint("Cleaned up socket")
-    sys.exit(0)
+    global websock
+    global webSockThread
+    global shouldQuit
+    shouldQuit = 1
+    if conn:
+        conn.shutdown(socket.SHUT_RDWR)
+        conn.close()
+    if websock:
+        websock.close()
+        dprint("Cleaned up socket")
+        sys.exit(0)
 
 def openSock():
+    global websock
     websock = socket.socket()
     websock.bind(('', port))
     websock.listen(1)
@@ -111,11 +139,13 @@ def responseForFrame(frame):
 
 def listen(sock):
     global conn
+    global shouldQuit
     dprint('Listening on port', port)
     conn, addr = sock.accept()
     dprint('Received connection from ' + addr[0])
-    try:
-        while 1:
+    conn.settimeout(3)
+    while not shouldQuit:
+        try:
             data = conn.recv(1024)
             if data == "":
                 dprint("Connection closed?")
@@ -133,22 +163,25 @@ def listen(sock):
                 frame.setRawData(data)
                 response = responseForFrame(frame)
 
-            if response:
-                conn.sendall(response)
-
-    except RuntimeError as e:
-        dprint("Error:", e)
-        dprint("Closed connection")
-        conn.close()
+                if response:
+                    conn.sendall(response)
+        except socket.timeout:
+            return
 
 for sig in (SIGABRT, SIGILL, SIGINT, SIGSEGV, SIGTERM):
     signal(sig, clean)
 
-websock = openSock()
+webSockThread = WebSockThread()
+webSockThread.start()
+try:
+    while (1):
+        line = raw_input("console> ").strip()
+        if line == "":
+            continue
 
-while 1:
-    try:
-        listen(websock)
-    except:
-        traceback.print_exc()
-        clean()
+
+except:
+    traceback.print_exc()
+    print("Running clean")
+    webSockThread.shouldQuit = 1
+    clean()
